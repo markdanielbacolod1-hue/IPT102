@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { FileText, Users, ChevronDown, Bell, MessageSquare, Share2, Clock, Folder, FileSignature } from 'lucide-react';
-
+// comment
 export function DocumentSharing() {
   return (
     <div className="p-6 bg-[url('./assets/cover.jpg')] h-full flex gap-6">
