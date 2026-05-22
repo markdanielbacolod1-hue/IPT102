@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
@@ -10,6 +9,7 @@ import { UserManagement } from './pages/UserManagement';
 import { DocumentManagement } from './pages/DocumentManagement';
 import { QrCode } from './pages/QrCode';
 import { DocumentSharing } from './pages/DocumentSharing';
+import { Notifications } from './pages/Notifications';
 
 function App() {
   return (
@@ -19,16 +19,18 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/login-success" element={<LoginSuccess />} />
         <Route path="/login-invalid" element={<LoginInvalid />} />
-        
+ 
         <Route element={<Layout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/user-management" element={<UserManagement />} />
           <Route path="/document-management" element={<DocumentManagement />} />
           <Route path="/qr-code" element={<QrCode />} />
           <Route path="/document-sharing" element={<DocumentSharing />} />
+          <Route path="/notifications" element={<Notifications />} />
         </Route>
       </Routes>
-    </BrowserRouter>);
-
+    </BrowserRouter>
+  );
 }
-export default App
+
+export default App;

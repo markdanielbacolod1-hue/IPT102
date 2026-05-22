@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { LayoutDashboard, UserCircle, FileText, QrCode, Share2, Bell } from 'lucide-react';
 
 const routeConfig = {
@@ -8,11 +7,13 @@ const routeConfig = {
   '/user-management': { title: 'User Management', icon: UserCircle },
   '/document-management': { title: 'Document Management', icon: FileText },
   '/qr-code': { title: 'QR Code and Tracking', icon: QrCode },
-  '/document-sharing': { title: 'Document Sharing & Notification', icon: Share2 }
+  '/document-sharing': { title: 'Document Sharing & Notification', icon: Share2 },
+  '/notifications': { title: 'Notifications', icon: Bell },
 };
 
 export function Header() {
   const location = useLocation();
+  const navigate = useNavigate();
   const currentRoute = routeConfig[location.pathname] || { title: 'Dashboard', icon: LayoutDashboard };
   const Icon = currentRoute.icon;
 
@@ -23,17 +24,22 @@ export function Header() {
         <h1 className="text-white text-2xl font-normal">{currentRoute.title}</h1>
       </div>
       <div className="flex items-center gap-6">
-        <button className="text-white hover:text-white/80 transition-colors">
+        <button
+          onClick={() => navigate('/notifications')}
+          className="text-white hover:text-white/80 transition-colors relative"
+        >
           <Bell className="w-6 h-6" />
+          {/* Unread badge — static indicator */}
+          <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></span>
         </button>
         <div className="w-12 h-12 bg-gray-300 rounded-full overflow-hidden border-2 border-white">
           <img
             src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=150&h=150"
             alt="User profile"
-            className="w-full h-full object-cover" />
-          
+            className="w-full h-full object-cover"
+          />
         </div>
       </div>
-    </header>);
-
+    </header>
+  );
 }
