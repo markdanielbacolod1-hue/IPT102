@@ -25,6 +25,7 @@ export function DocumentManagement() {
   const [isDragging, setIsDragging] = useState(false);
   const [uploadQueue, setUploadQueue] = useState([]);
   const [activity, setActivity] = useState(activityLog);
+  const [openDropdown, setOpenDropdown] = useState(null);
   const fileInputRef = useRef(null);
 
   const filtered = documents.filter(d =>
@@ -90,6 +91,55 @@ export function DocumentManagement() {
 
   const removeFromQueue = (id) => setUploadQueue(prev => prev.filter(q => q.id !== id));
 
+  const handleView = (doc) => {
+    alert(`Viewing ${doc.name}`);
+    setOpenDropdown(null);
+  };
+
+  const handleRename = (doc) => {
+    const newName = prompt("Enter new document name:", doc.name);
+
+    if (newName && newName.trim()) {
+      setDocuments(prev =>
+        prev.map(d =>
+          d.id === doc.id ? { ...d, name: newName } : d
+        )
+      );
+
+      setActivity(prev => [
+        {
+          icon: Edit3,
+          label: 'Document Renamed',
+          detail: `${doc.name} renamed to ${newName}.`,
+          time: 'Just now',
+        },
+        ...prev,
+      ]);
+    }
+
+    setOpenDropdown(null);
+  };
+
+  const handleDelete = (doc) => {
+    const confirmDelete = window.confirm(`Delete ${doc.name}?`);
+
+    if (confirmDelete) {
+      setDocuments(prev => prev.filter(d => d.id !== doc.id));
+
+      setActivity(prev => [
+        {
+          icon: AlertCircle,
+          label: 'Document Deleted',
+          detail: `${doc.name} was removed.`,
+          time: 'Just now',
+        },
+        ...prev,
+      ]);
+    }
+
+    setOpenDropdown(null);
+  };
+
   return (
     <div className="p-6 bg-[url('./assets/cover.jpg')] h-full flex gap-6">
       {/* Left Column */}
@@ -133,9 +183,45 @@ export function DocumentManagement() {
                 <div className="flex items-center justify-between w-1/2">
                   <span className="text-sm text-black">{doc.date}</span>
                   <span className="text-sm text-black">{doc.time}</span>
-                  <button className="p-1 hover:bg-black/10 rounded">
-                    <ChevronDown className="w-5 h-5 text-black" />
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() =>
+                        setOpenDropdown(openDropdown === doc.id ? null : doc.id)
+                      }
+                      className="p-1 hover:bg-black/10 rounded"
+                    >
+                      <ChevronDown
+                        className={`w-5 h-5 text-black transition-transform ${
+                          openDropdown === doc.id ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {openDropdown === doc.id && (
+                      <div className="absolute right-0 mt-2 w-36 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden">
+                        <button
+                          onClick={() => handleView(doc)}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                        >
+                          View
+                        </button>
+
+                        <button
+                          onClick={() => handleRename(doc)}
+                          className="w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
+                        >
+                          Rename
+                        </button>
+
+                        <button
+                          onClick={() => handleDelete(doc)}
+                          className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}
