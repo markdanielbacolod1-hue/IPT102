@@ -1,29 +1,29 @@
 const bcrypt = require('bcryptjs');
-const pool   = require('../config/db');
+const db     = require('../config/db');
 
 // GET /api/users — list all users (Admin only)
-const getAllUsers = async (req, res) => {
+async function getAllUsers(req, res) {
   try {
-    const [users] = await pool.query(
+    const [users] = await db.query(
       `SELECT u.user_id, u.full_name, u.email, u.status, u.created_at,
               r.role_name, d.department_name
        FROM users u
        JOIN roles r ON u.role_id = r.role_id
-       LEFT JOIN departments d ON u.department_id = d.department_id 
+       LEFT JOIN departments d ON u.department_id = d.department_id
        ORDER BY u.created_at DESC`
     );
 
-    return res.status(200).json({ success: true, data: users });
+    return res.json({ users });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ success: false, message: 'Something went wrong.' });
+    return res.status(500).json({ message: 'Server error.' });
   }
-};
+}
 
 // GET /api/users/:id — get one user
-const getUserById = async (req, res) => {
+async function getUserById(req, res) {
   try {
-    const [rows] = await pool.query(
+    const [rows] = await db.query(
       `SELECT u.user_id, u.full_name, u.email, u.status, u.created_at,
               r.role_id, r.role_name, d.department_id, d.department_name
        FROM users u
@@ -33,73 +33,66 @@ const getUserById = async (req, res) => {
       [req.params.id]
     );
 
-    if (!rows.length) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
     }
 
-    return res.status(200).json({ success: true, data: rows[0] });
+    return res.json({ user: rows[0] });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ success: false, message: 'Something went wrong.' });
+    return res.status(500).json({ message: 'Server error.' });
   }
-};
+}
 
-// POST /api/users — create a new user (Admin only)
-const createUser = async (req, res) => {
+// POST /api/users — create user (Admin only)
+async function createUser(req, res) {
+  const { full_name, email, password, role_id, department_id } = req.body;
+
+  if (!full_name || !email || !password || !role_id) {
+    return res.status(400).json({ message: 'full_name, email, password, and role_id are required.' });
+  }
+
   try {
-    const { full_name, email, password, role_id, department_id, status = 'Active' } = req.body;
-
-    if (!full_name || !email || !password || !role_id) {
-      return res.status(400).json({ success: false, message: 'full_name, email, password, and role_id are required.' });
+    // Check if email already used
+    const [existing] = await db.query('SELECT user_id FROM users WHERE email = ?', [email]);
+    if (existing.length > 0) {
+      return res.status(409).json({ message: 'Email is already in use.' });
     }
 
-    // Check if email already exists
-    const [existing] = await pool.query('SELECT user_id FROM users WHERE email = ?', [email.toLowerCase()]);
-    if (existing.length) {
-      return res.status(409).json({ success: false, message: 'Email is already registered.' });
-    }
+    const hashed = await bcrypt.hash(password, 10);
 
-    // Hash the password before saving
-    const hashedPassword = await bcrypt.hash(password, 12);
-
-    const [result] = await pool.query(
-      'INSERT INTO users (full_name, email, password, role_id, department_id, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [full_name, email.toLowerCase(), hashedPassword, role_id, department_id || null, status]
+    const [result] = await db.query(
+      'INSERT INTO users (full_name, email, password, role_id, department_id) VALUES (?, ?, ?, ?, ?)',
+      [full_name, email, hashed, role_id, department_id || null]
     );
 
-    return res.status(201).json({
-      success: true,
-      message: 'User created successfully.',
-      userId: result.insertId,
-    });
+    return res.status(201).json({ message: 'User created.', userId: result.insertId });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ success: false, message: 'Something went wrong.' });
+    return res.status(500).json({ message: 'Server error.' });
   }
-};
+}
 
-// PUT /api/users/:id — update user info
-const updateUser = async (req, res) => {
+// PUT /api/users/:id — update user (Admin, or own profile)
+async function updateUser(req, res) {
+  const { full_name, email, role_id, department_id, status } = req.body;
+  const { id } = req.params;
+
+  const isAdmin = req.user.role === 'Admin';
+  const isSelf  = req.user.userId === parseInt(id);
+
+  if (!isAdmin && !isSelf) {
+    return res.status(403).json({ message: 'You can only update your own profile.' });
+  }
+
   try {
-    const { full_name, email, role_id, department_id, status } = req.body;
-    const { id } = req.params;
-    const isAdmin = req.user.role_name === 'Admin';
-    const isSelf  = parseInt(id) === req.user.user_id;
-
-    // Non-admins can only edit their own profile
-    if (!isAdmin && !isSelf) {
-      return res.status(403).json({ success: false, message: 'You can only edit your own profile.' });
+    // Non-admins cannot change role or status
+    const [current] = await db.query('SELECT * FROM users WHERE user_id = ?', [id]);
+    if (current.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
     }
 
-    // Get current data
-    const [rows] = await pool.query('SELECT * FROM users WHERE user_id = ?', [id]);
-    if (!rows.length) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
-    }
-
-    const current = rows[0];
-
-    await pool.query(
+    await db.query(
       `UPDATE users SET
         full_name     = ?,
         email         = ?,
@@ -108,96 +101,90 @@ const updateUser = async (req, res) => {
         status        = ?
        WHERE user_id = ?`,
       [
-        full_name     || current.full_name,
-        email         ? email.toLowerCase() : current.email,
-        isAdmin ? (role_id || current.role_id) : current.role_id,         // only admin can change role
-        isAdmin ? (department_id || current.department_id) : current.department_id,
-        isAdmin ? (status || current.status) : current.status,            // only admin can change status
+        full_name     || current[0].full_name,
+        email         || current[0].email,
+        isAdmin ? (role_id       || current[0].role_id)       : current[0].role_id,
+        isAdmin ? (department_id || current[0].department_id) : current[0].department_id,
+        isAdmin ? (status        || current[0].status)        : current[0].status,
         id,
       ]
     );
 
-    return res.status(200).json({ success: true, message: 'User updated successfully.' });
+    return res.json({ message: 'User updated.' });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ success: false, message: 'Something went wrong.' });
+    return res.status(500).json({ message: 'Server error.' });
   }
-};
+}
 
 // PATCH /api/users/:id/password — change password
-const changePassword = async (req, res) => {
+async function changePassword(req, res) {
+  const { currentPassword, newPassword } = req.body;
+  const { id } = req.params;
+
+  const isAdmin = req.user.role === 'Admin';
+  const isSelf  = req.user.userId === parseInt(id);
+
+  if (!isAdmin && !isSelf) {
+    return res.status(403).json({ message: 'Access denied.' });
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ message: 'New password must be at least 6 characters.' });
+  }
+
   try {
-    const { id } = req.params;
-    const { currentPassword, newPassword } = req.body;
-    const isAdmin = req.user.role_name === 'Admin';
-    const isSelf  = parseInt(id) === req.user.user_id;
-
-    if (!isAdmin && !isSelf) {
-      return res.status(403).json({ success: false, message: 'You can only change your own password.' });
+    const [rows] = await db.query('SELECT password FROM users WHERE user_id = ?', [id]);
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
     }
 
-    if (!newPassword) {
-      return res.status(400).json({ success: false, message: 'New password is required.' });
-    }
-
-    const [rows] = await pool.query('SELECT password FROM users WHERE user_id = ?', [id]);
-    if (!rows.length) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
-    }
-
-    // Non-admin users must verify their current password first
+    // If not admin, verify the current password first
     if (!isAdmin) {
-      const isMatch = await bcrypt.compare(currentPassword, rows[0].password);
-      if (!isMatch) {
-        return res.status(401).json({ success: false, message: 'Current password is incorrect.' });
+      const match = await bcrypt.compare(currentPassword, rows[0].password);
+      if (!match) {
+        return res.status(401).json({ message: 'Current password is incorrect.' });
       }
     }
 
-    const hashed = await bcrypt.hash(newPassword, 12);
-    await pool.query('UPDATE users SET password = ? WHERE user_id = ?', [hashed, id]);
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await db.query('UPDATE users SET password = ? WHERE user_id = ?', [hashed, id]);
 
-    return res.status(200).json({ success: true, message: 'Password changed successfully.' });
+    return res.json({ message: 'Password updated.' });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ success: false, message: 'Something went wrong.' });
+    return res.status(500).json({ message: 'Server error.' });
   }
-};
+}
 
-// DELETE /api/users/:id — deactivate user (soft delete, Admin only)
-const deleteUser = async (req, res) => {
+// DELETE /api/users/:id — soft delete (Admin only)
+async function deleteUser(req, res) {
+  const { id } = req.params;
+
+  if (req.user.userId === parseInt(id)) {
+    return res.status(400).json({ message: 'You cannot delete your own account.' });
+  }
+
   try {
-    const { id } = req.params;
-
-    if (parseInt(id) === req.user.user_id) {
-      return res.status(400).json({ success: false, message: 'You cannot delete your own account.' });
-    }
-
-    const [rows] = await pool.query('SELECT user_id FROM users WHERE user_id = ?', [id]);
-    if (!rows.length) {
-      return res.status(404).json({ success: false, message: 'User not found.' });
-    }
-
-    // Soft delete — just mark as Inactive so history is preserved
-    await pool.query("UPDATE users SET status = 'Inactive' WHERE user_id = ?", [id]);
-
-    return res.status(200).json({ success: true, message: 'User deactivated successfully.' });
+    await db.query("UPDATE users SET status = 'Inactive' WHERE user_id = ?", [id]);
+    return res.json({ message: 'User deactivated.' });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ success: false, message: 'Something went wrong.' });
+    return res.status(500).json({ message: 'Server error.' });
   }
-};
+}
 
-// GET /api/roles
-const getRoles = async (req, res) => {
-  const [roles] = await pool.query('SELECT role_id, role_name FROM roles');
-  return res.status(200).json({ success: true, data: roles });
-};
+// GET /api/roles — list all roles
+async function getRoles(req, res) {
+  const [roles] = await db.query('SELECT role_id, role_name FROM roles');
+  return res.json({ roles });
+}
 
-// GET /api/departments
-const getDepartments = async (req, res) => {
-  const [depts] = await pool.query('SELECT department_id, department_name FROM departments');
-  return res.status(200).json({ success: true, data: depts });
-};
+// GET /api/departments — list all departments
+async function getDepartments(req, res) {
+  const [departments] = await db.query('SELECT department_id, department_name FROM departments');
+  return res.json({ departments });
+}
 
 module.exports = {
   getAllUsers, getUserById, createUser, updateUser,

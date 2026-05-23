@@ -1,116 +1,116 @@
 const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
-const pool   = require('../config/db');
+const db     = require('../config/db');
 
 // POST /api/auth/login
-const login = async (req, res) => {
+async function login(req, res) {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Email and password are required.' });
+  }
+
   try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Email and password are required.' });
-    }
-
-    // Find user in database
-    const [rows] = await pool.query(
-      `SELECT u.user_id, u.full_name, u.email, u.password, u.status, u.department_id, r.role_name
+    // Find user by email (include role name)
+    const [rows] = await db.query(
+      `SELECT u.user_id, u.full_name, u.email, u.password, u.status,
+              r.role_name
        FROM users u
        JOIN roles r ON u.role_id = r.role_id
        WHERE u.email = ?`,
-      [email.toLowerCase()]
+      [email]
     );
 
-    if (!rows.length) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+    if (rows.length === 0) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
     const user = rows[0];
 
+    // Check if account is active
     if (user.status !== 'Active') {
-      return res.status(403).json({ success: false, message: 'Your account is inactive. Contact admin.' });
+      return res.status(403).json({ message: 'Your account is inactive.' });
     }
 
     // Check password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password.' });
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) {
+      return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    // Create token
+    // Create token (expires in 8 hours)
     const token = jwt.sign(
       { userId: user.user_id, role: user.role_name },
       process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { expiresIn: '8h' }
     );
 
-    // Save token in httpOnly cookie (more secure than localStorage)
-    res.cookie('accessToken', token, {
+    // Send token as cookie
+    res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 8 * 60 * 60 * 1000, // 8 hours
+      maxAge: 8 * 60 * 60 * 1000, // 8 hours in ms
     });
 
     // Log the login activity
-    await pool.query(
-      'INSERT INTO user_activity_logs (user_id, activity, department_id, status) VALUES (?, ?, ?, ?)',
-      [user.user_id, 'Login Successful', user.department_id, 'Active']
+    await db.query(
+      'INSERT INTO user_activity_logs (user_id, activity) VALUES (?, ?)',
+      [user.user_id, 'Login Successful']
     );
 
-    return res.status(200).json({
-      success: true,
+    return res.json({
       message: 'Login successful.',
+      token,
       user: {
-        userId:   user.user_id,
+        id:       user.user_id,
         fullName: user.full_name,
         email:    user.email,
         role:     user.role_name,
       },
-      token, // also return token for clients that prefer headers
     });
+
   } catch (err) {
-    console.error('Login error:', err);
-    return res.status(500).json({ success: false, message: 'Something went wrong. Please try again.' });
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
   }
-};
+}
 
 // POST /api/auth/logout
-const logout = async (req, res) => {
-  try {
-    if (req.user) {
-      await pool.query(
-        'INSERT INTO user_activity_logs (user_id, activity, status) VALUES (?, ?, ?)',
-        [req.user.user_id, 'Logged Out', 'Active']
-      );
-    }
-
-    res.clearCookie('accessToken');
-    return res.status(200).json({ success: true, message: 'Logged out successfully.' });
-  } catch (err) {
-    console.error('Logout error:', err);
-    return res.status(500).json({ success: false, message: 'Something went wrong.' });
+async function logout(req, res) {
+  // Log the logout
+  if (req.user) {
+    await db.query(
+      'INSERT INTO user_activity_logs (user_id, activity) VALUES (?, ?)',
+      [req.user.userId, 'Logged Out']
+    );
   }
-};
 
-// GET /api/auth/me — get current logged-in user info
-const getMe = async (req, res) => {
+  res.clearCookie('token');
+  return res.json({ message: 'Logged out.' });
+}
+
+// GET /api/auth/me — get current logged-in user
+async function getMe(req, res) {
   try {
-    const [rows] = await pool.query(
-      `SELECT u.user_id, u.full_name, u.email, u.status, u.created_at,
+    const [rows] = await db.query(
+      `SELECT u.user_id, u.full_name, u.email, u.status,
               r.role_name, d.department_name
        FROM users u
        JOIN roles r ON u.role_id = r.role_id
        LEFT JOIN departments d ON u.department_id = d.department_id
        WHERE u.user_id = ?`,
-      [req.user.user_id]
+      [req.user.userId]
     );
 
-    return res.status(200).json({ success: true, user: rows[0] });
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    return res.json({ user: rows[0] });
+
   } catch (err) {
-    console.error('GetMe error:', err);
-    return res.status(500).json({ success: false, message: 'Something went wrong.' });
+    console.error(err);
+    return res.status(500).json({ message: 'Server error.' });
   }
-};
+}
 
 module.exports = { login, logout, getMe };
-EOF
