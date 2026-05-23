@@ -34,7 +34,8 @@ export function Login() {
       // Save user info so other pages can use it
       localStorage.setItem('user', JSON.stringify(data.user));
 
-      navigate('/login-success');
+      // Change this from '/login-success' to go straight to the main app dashboard
+      navigate('/dashboard');
 
     } catch (err) {
       setError('Cannot connect to server.');

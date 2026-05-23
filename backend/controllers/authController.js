@@ -2,6 +2,8 @@ const bcrypt = require('bcryptjs');
 const jwt    = require('jsonwebtoken');
 const db     = require('../config/db');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'mySecretKey123';
+
 // POST /api/auth/login
 async function login(req, res) {
   const { email, password } = req.body;
@@ -11,7 +13,6 @@ async function login(req, res) {
   }
 
   try {
-    // Find user by email (include role name)
     const [rows] = await db.query(
       `SELECT u.user_id, u.full_name, u.email, u.password, u.status,
               r.role_name
@@ -27,31 +28,26 @@ async function login(req, res) {
 
     const user = rows[0];
 
-    // Check if account is active
     if (user.status !== 'Active') {
       return res.status(403).json({ message: 'Your account is inactive.' });
     }
 
-    // Check password
     const match = await bcrypt.compare(password, user.password);
     if (!match) {
       return res.status(401).json({ message: 'Invalid email or password.' });
     }
 
-    // Create token (expires in 8 hours)
     const token = jwt.sign(
       { userId: user.user_id, role: user.role_name },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: '8h' }
     );
 
-    // Send token as cookie
     res.cookie('token', token, {
       httpOnly: true,
-      maxAge: 8 * 60 * 60 * 1000, // 8 hours in ms
+      maxAge: 8 * 60 * 60 * 1000,
     });
 
-    // Log the login activity
     await db.query(
       'INSERT INTO user_activity_logs (user_id, activity) VALUES (?, ?)',
       [user.user_id, 'Login Successful']
@@ -76,19 +72,17 @@ async function login(req, res) {
 
 // POST /api/auth/logout
 async function logout(req, res) {
-  // Log the logout
   if (req.user) {
     await db.query(
       'INSERT INTO user_activity_logs (user_id, activity) VALUES (?, ?)',
       [req.user.userId, 'Logged Out']
     );
   }
-
   res.clearCookie('token');
   return res.json({ message: 'Logged out.' });
 }
 
-// GET /api/auth/me — get current logged-in user
+// GET /api/auth/me
 async function getMe(req, res) {
   try {
     const [rows] = await db.query(

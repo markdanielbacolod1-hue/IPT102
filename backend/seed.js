@@ -1,32 +1,23 @@
-/**
- * Run this once to create the admin user and seed roles/departments.
- * Usage: node seed.js
- */
-
-require('dotenv').config();
 const bcrypt = require('bcryptjs');
 const db     = require('./config/db');
 
 async function seed() {
-  // Roles
   const roles = ['Admin', 'Staff', 'Department Head'];
   for (const name of roles) {
     await db.query('INSERT IGNORE INTO roles (role_name) VALUES (?)', [name]);
   }
 
-  // Departments
   const departments = ['HR', 'Registrar', 'Finance', 'Admin'];
   for (const name of departments) {
     await db.query('INSERT IGNORE INTO departments (department_name) VALUES (?)', [name]);
   }
 
-  // Admin user
   const [[existing]] = await db.query("SELECT user_id FROM users WHERE email = 'admin@admin.com'");
 
   if (!existing) {
-    const [[role]]  = await db.query("SELECT role_id FROM roles WHERE role_name = 'Admin'");
-    const [[dept]]  = await db.query("SELECT department_id FROM departments WHERE department_name = 'Admin'");
-    const password  = await bcrypt.hash('admin123', 10);
+    const [[role]] = await db.query("SELECT role_id FROM roles WHERE role_name = 'Admin'");
+    const [[dept]] = await db.query("SELECT department_id FROM departments WHERE department_name = 'Admin'");
+    const password = await bcrypt.hash('admin123', 10);
 
     await db.query(
       'INSERT INTO users (full_name, email, password, role_id, department_id) VALUES (?, ?, ?, ?, ?)',

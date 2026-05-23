@@ -36,6 +36,7 @@
     "escape-html": "^1.0.3",
     "etag": "^1.8.1",
     "express": "^5.2.1",
+    "express-validator": "^7.3.2",
     "fill-range": "^7.1.1",
     "finalhandler": "^2.1.1",
     "forwarded": "^0.2.0",
@@ -114,8 +115,9 @@
     "wrappy": "^1.0.2"
   },
   "scripts": {
-    "start": "nodemon index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "node index.js",
+    "seed": "node seed.js"
   },
   "keywords": [],
   "author": "",
