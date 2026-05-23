@@ -1,42 +1,63 @@
-import React, { useState } from 'react';
-import { Bell, MessageSquare, Share2, AlertTriangle, CheckCircle2, FileText, X, Check, Filter } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bell, MessageSquare, Share2, AlertTriangle, FileText, X, Check } from 'lucide-react';
 
-const initialNotifications = [
-  { id: 1, type: 'comment', icon: MessageSquare, title: 'New Comment on Report', detail: 'Maria left a comment on Q1 Financial Report.', time: '2 mins ago', read: false, color: '#578FC6' },
-  { id: 2, type: 'share', icon: Share2, title: 'File Shared with You', detail: 'John shared "Contract_2026.pdf" with you.', time: '15 mins ago', read: false, color: '#118592' },
-  { id: 3, type: 'reminder', icon: AlertTriangle, title: 'Reminder: Review Due Date', detail: 'Grading Sheet review is due by March 5, 2026.', time: '1 hour ago', read: false, color: '#E07B39' },
-  { id: 4, type: 'upload', icon: FileText, title: 'Document Upload Complete', detail: 'Diploma.pdf was uploaded successfully.', time: '2 hours ago', read: true, color: '#498562' },
-  { id: 5, type: 'share', icon: Share2, title: 'New Document Shared', detail: '"Project Plan" was shared with Marvie, John.', time: '3 hours ago', read: true, color: '#118592' },
-  { id: 6, type: 'comment', icon: MessageSquare, title: 'Reply on Form 137', detail: 'Admin replied to your query on Form 137.', time: 'Yesterday', read: true, color: '#578FC6' },
-];
+const ICON_MAP = {
+  comment:  MessageSquare,
+  share:    Share2,
+  reminder: AlertTriangle,
+  upload:   FileText,
+};
 
-const filterOptions = ['All', 'Unread', 'Comment', 'Share', 'Reminder', 'Upload'];
+const filterOptions = ['All', 'Unread', 'comment', 'share', 'reminder', 'upload'];
 
 export function Notifications() {
-  const [notifications, setNotifications] = useState(initialNotifications);
-  const [activeFilter, setActiveFilter] = useState('All');
+  const [notifications, setNotifications] = useState([]);
+  const [activeFilter, setActiveFilter]   = useState('All');
+  const [loading, setLoading]             = useState(true);
 
-  const markRead = (id) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await fetch('http://localhost:5000/api/notifications', { credentials: 'include' });
+      const data = await res.json();
+      if (data.success) setNotifications(data.data);
+    } catch (err) {
+      console.error('Failed to load notifications:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const dismiss = (id) => {
-    setNotifications(prev => prev.filter(n => n.id !== id));
+  const markRead = async (id) => {
+    setNotifications(prev => prev.map(n => n.notification_id === id ? { ...n, is_read: true } : n));
+    await fetch(`http://localhost:5000/api/notifications/${id}/read`, { method: 'PATCH', credentials: 'include' });
   };
 
-  const markAllRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const dismiss = async (id) => {
+    setNotifications(prev => prev.filter(n => n.notification_id !== id));
+    await fetch(`http://localhost:5000/api/notifications/${id}`, { method: 'DELETE', credentials: 'include' });
   };
 
-  const clearAll = () => setNotifications([]);
+  const markAllRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    await fetch('http://localhost:5000/api/notifications/read-all', { method: 'PATCH', credentials: 'include' });
+  };
+
+  const clearAll = async () => {
+    setNotifications([]);
+    await fetch('http://localhost:5000/api/notifications', { method: 'DELETE', credentials: 'include' });
+  };
 
   const filtered = notifications.filter(n => {
-    if (activeFilter === 'All') return true;
-    if (activeFilter === 'Unread') return !n.read;
-    return n.type === activeFilter.toLowerCase();
+    if (activeFilter === 'All')    return true;
+    if (activeFilter === 'Unread') return !n.is_read;
+    return n.notification_type?.toLowerCase() === activeFilter;
   });
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
   return (
     <div className="p-6 bg-[url('./assets/cover.jpg')] h-full flex gap-6">
@@ -47,27 +68,19 @@ export function Notifications() {
             <Bell className="w-7 h-7 text-black fill-current" />
             <h2 className="text-2xl font-semibold text-black">Notifications</h2>
             {unreadCount > 0 && (
-              <span className="bg-[#118592] text-white text-xs font-bold rounded-full px-2 py-0.5">
-                {unreadCount}
-              </span>
+              <span className="bg-[#118592] text-white text-xs font-bold rounded-full px-2 py-0.5">{unreadCount}</span>
             )}
           </div>
           <div className="flex gap-3">
-            <button
-              onClick={markAllRead}
-              className="text-sm text-[#118592] hover:underline flex items-center gap-1"
-            >
+            <button onClick={markAllRead} className="text-sm text-[#118592] hover:underline flex items-center gap-1">
               <Check className="w-4 h-4" /> Mark all read
             </button>
-            <button
-              onClick={clearAll}
-              className="text-sm text-red-400 hover:underline flex items-center gap-1"
-            >
+            <button onClick={clearAll} className="text-sm text-red-400 hover:underline flex items-center gap-1">
               <X className="w-4 h-4" /> Clear all
             </button>
           </div>
         </div>
-        <div className="w-full h-[2px] bg-black mb-4"></div>
+        <div className="w-full h-[2px] bg-black mb-4" />
 
         {/* Filters */}
         <div className="flex gap-2 mb-6 flex-wrap">
@@ -75,7 +88,7 @@ export function Notifications() {
             <button
               key={f}
               onClick={() => setActiveFilter(f)}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors border ${
+              className={`px-4 py-1.5 rounded-full text-sm font-medium border capitalize transition-colors ${
                 activeFilter === f
                   ? 'bg-[#118592] text-white border-[#118592]'
                   : 'bg-white text-black border-gray-300 hover:border-[#118592] hover:text-[#118592]'
@@ -86,47 +99,46 @@ export function Notifications() {
           ))}
         </div>
 
-        {/* Notification List */}
+        {/* List */}
         <div className="flex flex-col gap-3 overflow-y-auto flex-1">
-          {filtered.length === 0 && (
+          {loading && <p className="text-sm text-gray-400 text-center mt-8">Loading...</p>}
+
+          {!loading && filtered.length === 0 && (
             <div className="flex flex-col items-center justify-center flex-1 text-gray-300 gap-3">
               <Bell className="w-16 h-16" />
               <p className="text-lg">No notifications here</p>
             </div>
           )}
+
           {filtered.map(notif => {
-            const Icon = notif.icon;
+            const Icon = ICON_MAP[notif.notification_type?.toLowerCase()] ?? Bell;
             return (
               <div
-                key={notif.id}
-                onClick={() => markRead(notif.id)}
+                key={notif.notification_id}
+                onClick={() => markRead(notif.notification_id)}
                 className={`w-full rounded-[20px] border p-4 flex items-start gap-4 cursor-pointer transition-all ${
-                  notif.read
+                  notif.is_read
                     ? 'bg-white border-gray-200 hover:bg-gray-50'
-                    : 'bg-[#f0fafb] border-[#118592]/30 hover:bg-[#e6f7f8] shadow-sm'
+                    : 'bg-[#f0fafb] border-[#118592]/30 shadow-sm'
                 }`}
               >
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-                  style={{ backgroundColor: notif.color + '22' }}
-                >
-                  <Icon className="w-5 h-5" style={{ color: notif.color }} />
+                <div className="w-10 h-10 rounded-full bg-[#118592]/10 flex items-center justify-center shrink-0">
+                  <Icon className="w-5 h-5 text-[#118592]" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className={`font-semibold text-black ${!notif.read ? 'text-base' : 'text-sm'}`}>
-                      {notif.title}
+                    <p className={`font-semibold text-black ${notif.is_read ? 'text-sm' : 'text-base'}`}>
+                      {notif.message}
                     </p>
-                    {!notif.read && (
-                      <span className="w-2 h-2 rounded-full bg-[#118592] shrink-0"></span>
-                    )}
+                    {!notif.is_read && <span className="w-2 h-2 rounded-full bg-[#118592] shrink-0" />}
                   </div>
-                  <p className="text-sm text-gray-500 mt-0.5">{notif.detail}</p>
-                  <p className="text-xs text-gray-400 mt-1">{notif.time}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(notif.created_at).toLocaleString()}
+                  </p>
                 </div>
                 <button
-                  onClick={e => { e.stopPropagation(); dismiss(notif.id); }}
-                  className="text-gray-300 hover:text-gray-600 shrink-0 mt-0.5"
+                  onClick={e => { e.stopPropagation(); dismiss(notif.notification_id); }}
+                  className="text-gray-300 hover:text-gray-600 shrink-0"
                 >
                   <X className="w-4 h-4" />
                 </button>
