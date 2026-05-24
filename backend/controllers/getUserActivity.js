@@ -1,3 +1,6 @@
+// Add this function to userController.js, then add the route in userRoutes.js:
+// router.get('/:id/activity', getUserActivity);
+
 async function getUserActivity(req, res) {
   const { id } = req.params;
   const isAdmin = req.user.role === 'Admin';
@@ -16,6 +19,7 @@ async function getUserActivity(req, res) {
        LIMIT 20`,
       [id]
     );
+
     return res.json({ logs });
   } catch (err) {
     console.error(err);

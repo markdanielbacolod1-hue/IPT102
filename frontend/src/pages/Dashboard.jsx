@@ -8,32 +8,41 @@ import {
 const COLORS = ['#118592', '#D9D9D9'];
 
 export function Dashboard() {
-  const [stats, setStats]         = useState(null);
-  const [uploadsData, setUploads] = useState([]);
-  const [deptData, setDeptData]   = useState([]);
+  const [stats,      setStats]      = useState(null);
+  const [uploads,    setUploads]    = useState([]);
+  const [deptData,   setDeptData]   = useState([]);
   const [userStatus, setUserStatus] = useState([]);
-  const [loading, setLoading]     = useState(true);
+  const [loading,    setLoading]    = useState(true);
+  const [error,      setError]      = useState('');
 
-  useEffect(() => {
-    fetchDashboardData();
-  }, []);
+  useEffect(() => { fetchAll(); }, []);
 
-  async function fetchDashboardData() {
+  async function fetchAll() {
     try {
-      const res = await fetch('http://localhost:5000/api/dashboard', {
+      const token = localStorage.getItem('token') || '';
+
+      const response = await fetch('http://localhost:5000/api/dashboard', {
         credentials: 'include',
+        headers: { 'Authorization': `Bearer ${token}` },
       });
-      const data = await res.json();
+
+      if (response.status === 401) {
+        setError('Session expired. Please log in again.');
+        setLoading(false);
+        return;
+      }
+
+      const data = await response.json();
 
       setStats(data.stats);
-      setUploads(data.uploadsPerMonth || []);
+      setUploads(data.uploadsPerMonth  || []);
       setDeptData(data.documentsByDept || []);
       setUserStatus([
-        { name: 'Active',   value: data.stats?.activeUsers   || 0 },
-        { name: 'Inactive', value: data.stats?.inactiveUsers || 0 },
+        { name: 'Active',   value: Number(data.stats?.activeUsers)   || 0 },
+        { name: 'Inactive', value: Number(data.stats?.inactiveUsers) || 0 },
       ]);
     } catch (err) {
-      console.error('Failed to load dashboard:', err);
+      setError('Cannot connect to server.');
     } finally {
       setLoading(false);
     }
@@ -42,13 +51,21 @@ export function Dashboard() {
   if (loading) {
     return (
       <div className="p-6 h-full flex items-center justify-center">
-        <p className="text-gray-400">Loading dashboard...</p>
+        <p className="text-gray-400">Loading...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 h-full flex items-center justify-center">
+        <p className="text-red-400">{error}</p>
       </div>
     );
   }
 
   return (
-    <div className="p-6 bg-[url('./assets/cover.jpg')] bg-left bg-cover flex flex-col gap-6 h-full">
+    <div className="p-6 flex flex-col gap-6 overflow-auto h-full">
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-6">
         <StatCard icon={Users}    label="Total Users"      value={stats?.totalUsers      ?? '—'} color="#768040" />
@@ -58,9 +75,9 @@ export function Dashboard() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-2 gap-6 flex-1 min-h-0">
+      <div className="grid grid-cols-2 gap-6">
         <ChartCard title="Document Uploads">
-          <LineChart data={uploadsData}>
+          <LineChart data={uploads}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="month" />
             <YAxis />
@@ -81,7 +98,7 @@ export function Dashboard() {
 
         <ChartCard title="User Status">
           <PieChart>
-            <Pie data={userStatus} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+            <Pie data={userStatus} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value">
               {userStatus.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
             </Pie>
             <Tooltip />
@@ -89,7 +106,7 @@ export function Dashboard() {
         </ChartCard>
 
         <ChartCard title="Recent Activity Overview">
-          <LineChart data={uploadsData}>
+          <LineChart data={uploads}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} />
             <XAxis dataKey="month" />
             <YAxis />
@@ -102,15 +119,14 @@ export function Dashboard() {
   );
 }
 
-// Small reusable stat card
 function StatCard({ icon: Icon, label, value, color }) {
   return (
     <div className="bg-white rounded-[10px] shadow-md relative overflow-hidden h-[112px] flex flex-col justify-center px-6">
       <div className="flex items-center gap-4">
         <Icon className="w-7 h-7 text-black" />
         <div>
-          <p className="text-lg font-instrument text-[#131312]">{label}</p>
-          <p className="text-[21px] font-medium font-instrument text-[#111111]">{value}</p>
+          <p className="text-lg text-[#131312]">{label}</p>
+          <p className="text-[21px] font-medium text-[#111111]">{value}</p>
         </div>
       </div>
       <div className="absolute bottom-0 left-0 w-full h-[8px]" style={{ background: color }}></div>
@@ -118,12 +134,11 @@ function StatCard({ icon: Icon, label, value, color }) {
   );
 }
 
-// Small reusable chart wrapper
 function ChartCard({ title, children }) {
   return (
-    <div className="bg-white rounded-[10px] shadow-md p-4 flex flex-col">
+    <div className="bg-white rounded-[10px] shadow-md p-4">
       <h3 className="text-lg font-medium mb-4">{title}</h3>
-      <div className="flex-1 min-h-0" style={{ minHeight: 200 }}>
+      <div style={{ width: '100%', height: 250 }}>
         <ResponsiveContainer width="100%" height="100%">
           {children}
         </ResponsiveContainer>

@@ -1,19 +1,11 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
+
 const { login, logout, getMe } = require('../controllers/authController');
-const { loginRules } = require('../middleware/validators'); // Adjust path as needed
-const { validationResult } = require('express-validator');
+const { authenticate }         = require('../middleware/auth');
 
-// Validation runner middleware
-const validate = (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ message: errors.array()[0].msg });
-  }
-  next();
-};
-
-// Route declaration using the rules
-router.post('/login', loginRules, validate, login);
+router.post('/login',  login);
+router.post('/logout', authenticate, logout);
+router.get('/me',      authenticate, getMe);
 
 module.exports = router;

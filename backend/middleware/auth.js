@@ -1,7 +1,8 @@
 const jwt = require('jsonwebtoken');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'mySecretKey123';
+
 function authenticate(req, res, next) {
-  // Get token from cookie or Authorization header
   const token = req.cookies?.token || req.headers.authorization?.split(' ')[1];
 
   if (!token) {
@@ -9,15 +10,14 @@ function authenticate(req, res, next) {
   }
 
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = decoded; // { userId, role }
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
     next();
   } catch {
     return res.status(401).json({ message: 'Invalid or expired session.' });
   }
 }
 
-// Check if user has the right role
 function authorize(...roles) {
   return (req, res, next) => {
     if (!roles.includes(req.user.role)) {

@@ -5,10 +5,10 @@ import { AuthLayout } from '../components/AuthLayout';
 
 export function Login() {
   const navigate = useNavigate();
-  const [email, setEmail]       = useState('');
+  const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError]       = useState('');
-  const [loading, setLoading]   = useState(false);
+  const [error,    setError]    = useState('');
+  const [loading,  setLoading]  = useState(false);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -16,11 +16,11 @@ export function Login() {
     setLoading(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // send/receive cookies
-        body: JSON.stringify({ email, password }),
+      const res  = await fetch('http://localhost:5000/api/auth/login', {
+        method:      'POST',
+        headers:     { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body:        JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
@@ -31,11 +31,12 @@ export function Login() {
         return;
       }
 
-      // Save user info so other pages can use it
-      localStorage.setItem('user', JSON.stringify(data.user));
+      // Save both token and user to localStorage
+      // Token is used as fallback when cookies don't work cross-origin
+      localStorage.setItem('token', data.token);
+      localStorage.setItem('user',  JSON.stringify(data.user));
 
-      // Change this from '/login-success' to go straight to the main app dashboard
-      navigate('/dashboard');
+      navigate('/login-success');
 
     } catch (err) {
       setError('Cannot connect to server.');
@@ -47,7 +48,7 @@ export function Login() {
   return (
     <AuthLayout title="User Login">
       <form onSubmit={handleLogin} className="w-full flex flex-col items-center gap-6">
-        <div className="w-full bg-brand-gray rounded-[10px] shadow-md p-6 flex flex-col gap-4 bg-white">
+        <div className="w-full rounded-[10px] shadow-md p-6 flex flex-col gap-4 bg-white">
           <div className="flex items-center gap-4 border-b border-black pb-2">
             <User className="w-[30px] h-[30px] text-black shrink-0" />
             <input
@@ -55,7 +56,7 @@ export function Login() {
               placeholder="Email"
               className="bg-transparent border-none outline-none text-2xl text-black placeholder:text-black/60 w-full"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
               required
             />
           </div>
@@ -66,15 +67,13 @@ export function Login() {
               placeholder="••••••••"
               className="bg-transparent border-none outline-none text-2xl text-black placeholder:text-black/60 w-full tracking-widest"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               required
             />
           </div>
         </div>
 
-        {error && (
-          <p className="text-red-500 text-sm">{error}</p>
-        )}
+        {error && <p className="text-red-500 text-sm">{error}</p>}
 
         <button
           type="submit"

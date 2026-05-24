@@ -1,1 +1,0 @@
-SELECT * FROM document_tracking_system.users;

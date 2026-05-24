@@ -24,8 +24,9 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/sharing',   sharingRoutes);
 app.use('/api/documents', documentRoutes);
 
-app.get('/api/health', (req, res) => {
-  res.json({ message: 'Server is running.' });
+// Catch-all for undefined routes — helps debug 404s
+app.use((req, res) => {
+  res.status(404).json({ message: `Route ${req.method} ${req.path} not found.` });
 });
 
 const PORT = process.env.PORT || 5000;
