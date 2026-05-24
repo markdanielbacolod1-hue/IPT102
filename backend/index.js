@@ -5,6 +5,8 @@ const cookieParser = require('cookie-parser');
 const authRoutes      = require('./routes/authRoutes');
 const userRoutes      = require('./routes/userRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const sharingRoutes   = require('./routes/sharingRoutes');
+const documentRoutes  = require('./routes/documentRoutes');
 
 const app = express();
 
@@ -19,6 +21,8 @@ app.use(cookieParser());
 app.use('/api/auth',      authRoutes);
 app.use('/api/users',     userRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/sharing',   sharingRoutes);
+app.use('/api/documents', documentRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ message: 'Server is running.' });

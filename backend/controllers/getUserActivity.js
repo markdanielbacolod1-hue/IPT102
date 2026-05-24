@@ -16,7 +16,6 @@ async function getUserActivity(req, res) {
        LIMIT 20`,
       [id]
     );
-
     return res.json({ logs });
   } catch (err) {
     console.error(err);
